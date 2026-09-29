@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- Banner Promocional -->
+<div class="banner">
+    <div>
+        <span style="background: rgba(255,255,255,0.2); color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; letter-spacing: 1px;">EMPRESAS Y GAMERS</span>
+        <h2>Armado de PC a Medida</h2>
+        <p>Encuentra las mejores fuentes de poder, teclados mecánicos y adaptadores de red.</p>
+        <span class="shipping-tag">🚚 Envíos prioritarios a Puente Alto y toda la RM</span>
+    </div>
+</div>
+
+<div class="layout-container">
+    <!-- Barra lateral de Filtros (Estética) -->
+    <aside class="sidebar">
+        <h2 style="color:#6a1b9a; margin-top:0; font-size: 20px;">Componentes de PC</h2>
+        
+        <div class="filter-group">
+            <h4>Disponibilidad</h4>
+            <label class="filter-item"><input type="checkbox" checked> Web</label>
+            <label class="filter-item"><input type="checkbox"> Tienda física</label>
+            <label class="filter-item"><input type="checkbox"> Incluir productos agotados</label>
+            <label class="filter-item"><input type="checkbox" checked> Llega mañana</label>
+        </div>
+
+        <div class="filter-group">
+            <h4>Marca</h4>
+            <label class="filter-item"><input type="checkbox"> MSI (12)</label>
+            <label class="filter-item"><input type="checkbox"> ASUS (22)</label>
+            <label class="filter-item"><input type="checkbox"> AMD (16)</label>
+            <label class="filter-item"><input type="checkbox"> COOLER MASTER (16)</label>
+            <label class="filter-item"><input type="checkbox"> CORSAIR (8)</label>
+        </div>
+    </aside>
+
+    <!-- Contenido Principal: Grilla de Productos -->
+    <section class="content">
+        <div class="catalog-header">
+            <span>{{ products|length }} productos encontrados</span>
+            <div>
+                Ordenar por: 
+                <select>
+                    <option>Relevancia</option>
+                    <option>Menor precio</option>
+                    <option>Mayor precio</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="grid">
+            {% for p in products %}
+            <div class="card">
+                <div class="img-placeholder">
+                    <!-- Espacio para futura foto del producto -->
+                    Hardware 500x500
+                </div>
+                
+                <div class="tag">LLEGA MAÑANA</div>
+                <div class="brand">TECHNOVA</div>
+                
+                <div class="title">{{ p.name }}</div>
+                
+                <!-- Precio Principal (simulando transferencia) -->
+                <div class="price-main">${{ "{:,.0f}".format(p.price).replace(',', '.') }}</div>
+                <div class="price-sub">Transferencias</div>
+                
+                <!-- Precio Secundario (simulando pago normal con un 5% de recargo) -->
+                <div class="price-normal">${{ "{:,.0f}".format(p.price * 1.05).replace(',', '.') }} Otros medios de pago</div>
+                
+                <button class="btn-add" 
+                        data-id="{{ p.id }}" 
+                        data-name="{{ p.name }}" 
+                        data-price="{{ p.price }}" 
+                        onclick="agregarDesdeDatos(this)">
+                    Agregar al Carrito
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+{% endblock %}

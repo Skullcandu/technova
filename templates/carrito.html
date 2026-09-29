@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Tu Carrito</h2>
+<div id="cart-items" style="background: white; padding: 20px; border-radius: 8px;"></div>
+<div style="margin-top: 20px;">
+    <button class="btn" onclick="comprar()">Finalizar Compra</button>
+</div>
+
+<script>
+    // Función que dibuja la tabla del carrito
+    function renderCart() {
+        const itemsDiv = document.getElementById('cart-items');
+        
+        if (cart.length === 0) {
+            itemsDiv.innerHTML = "<p>Tu carrito está vacío.</p>";
+            return;
+        }
+
+        let html = "<table style='width:100%; text-align:left;'><tr><th>Producto</th><th>Cant.</th><th>Precio Unitario</th><th>Subtotal</th><th>Acción</th></tr>";
+        let totalFinal = 0;
+        
+        cart.forEach((c, index) => {
+            let subtotal = c.qty * c.price;
+            totalFinal += subtotal;
+            html += `<tr>
+                        <td>${c.name}</td>
+                        <td>
+                            <input type="number" min="1" value="${c.qty}" onchange="actualizarCantidad(${index}, this.value)" style="width: 60px; padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
+                        </td>
+                        <td>$${c.price}</td>
+                        <td>$${subtotal}</td>
+                        <td>
+                            <button class="btn" style="background-color: #e74c3c; padding: 5px 10px;" onclick="eliminarProducto(${index})">Eliminar</button>
+                        </td>
+                     </tr>`;
+        });
+        
+        html += `<tr><td colspan="3"><b>Total</b></td><td colspan="2"><b>$${totalFinal}</b></td></tr>`;
+        itemsDiv.innerHTML = html + "</table>";
+    }
+
+    // Cambia la cantidad de un producto específico
+    function actualizarCantidad(index, nuevaCantidad) {
+        nuevaCantidad = parseInt(nuevaCantidad);
+        if (nuevaCantidad < 1) nuevaCantidad = 1; // Evita cantidades negativas o cero
+        
+        cart[index].qty = nuevaCantidad;
+        guardarYRefrescar();
+    }
+
+    // Elimina el producto completo del arreglo
+    function eliminarProducto(index) {
+        cart.splice(index, 1);
+        guardarYRefrescar();
+    }
+
+    // Guarda en memoria y actualiza la vista
+    function guardarYRefrescar() {
+        localStorage.setItem('cart', JSON.stringify(cart));
+        actualizarContador(); // Llama a la función que ya tenemos en base.html
+        renderCart();         // Vuelve a dibujar la tabla
+    }
+
+    // Dibujar el carrito apenas cargue la página
+    document.addEventListener("DOMContentLoaded", renderCart);
+
+    // Lógica de compra (se mantiene igual con BLV)
+    async function comprar() {
+        if(cart.length === 0) return showToast("El carrito está vacío");
+        const res = await fetch('/api/checkout', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({items: cart, coupons: []})
+        });
+        if(res.status === 401) return window.location.href = "/login";
+        
+        const data = await res.json();
+        alert("Compra realizada con éxito. Total pagado: $" + data.total);
+        localStorage.removeItem('cart');
+        window.location.href = "/catalogo";
+    }
+</script>
+{% endblock %}

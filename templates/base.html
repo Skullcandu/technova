@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>TechNova | Componentes de PC</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+        let cart = JSON.parse(localStorage.getItem('cart')) || [];
+    </script>
+</head>
+<body>
+    <!-- Header Principal -->
+    <header>
+        <div class="logo">
+            <a href="/catalogo" style="text-decoration: none;"><h1>Tech<span>Nova</span></h1></a>
+        </div>
+        
+        <div class="search-bar">
+            <!-- La búsqueda ahora está integrada de forma profesional arriba -->
+            <form method="GET" action="/catalogo">
+                <input type="text" name="q" placeholder="Buscar tarjetas de video, procesadores, periféricos..." value="{{ q if q else '' }}">
+                <button type="submit">Buscar</button>
+            </form>
+        </div>
+
+        <nav>
+            <a href="/carrito">🛒 Carrito (<span id="cart-count">0</span>)</a>
+            {% if user %}
+                <a href="#">👤 {{ user.username }}</a>
+                <a href="/logout">Salir</a>
+            {% else %}
+                <a href="/login">Iniciar Sesión</a>
+            {% endif %}
+        </nav>
+    </header>
+
+    <!-- Barra secundaria de navegación estática -->
+    <div class="sub-nav">
+        <a href="#">Gaming y Streaming</a>
+        <a href="#">Componentes de PC</a>
+        <a href="#">Conectividad y Redes</a>
+        <a href="#">Hogar y Oficina</a>
+        <a href="#">Audio y Video</a>
+    </div>
+    
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <div id="toast"></div>
+
+    <script>
+        function actualizarContador() {
+            let totalItems = cart.reduce((suma, item) => suma + item.qty, 0);
+            document.getElementById('cart-count').innerText = totalItems;
+        }
+        actualizarContador();
+        
+        function showToast(mensaje) {
+            const toast = document.getElementById("toast");
+            toast.innerText = mensaje;
+            toast.className = "show";
+            setTimeout(function(){ toast.className = toast.className.replace("show", ""); }, 3000);
+        }
+
+        function addToCart(id, name, price) {
+            let item = cart.find(x => parseInt(x.id) === parseInt(id));
+            if(item) { 
+                item.qty += 1; 
+            } else { 
+                cart.push({id: parseInt(id), name: name, price: parseFloat(price), qty: 1}); 
+            }
+            localStorage.setItem('cart', JSON.stringify(cart));
+            actualizarContador();
+            showToast(name + " agregado al carrito");
+        }
+
+        function agregarDesdeDatos(boton) {
+            const id = boton.getAttribute('data-id');
+            const name = boton.getAttribute('data-name');
+            const price = boton.getAttribute('data-price');
+            addToCart(id, name, price);
+        }
+    </script>
+</body>
+</html>
