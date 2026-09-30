@@ -68,11 +68,22 @@
     async function comprar() {
         if(cart.length === 0) return showToast("El carrito está vacío");
         const res = await fetch('/api/checkout', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({items: cart, coupons: []})
-        });
-        if(res.status === 401) return window.location.href = "/login";
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items: cart })
+})
+.then(response => response.json())
+.then(data => {
+    if (data.error) {
+        // Si el backend manda un error (como falta de stock), mostramos el error real
+        alert(data.error);
+    } else {
+        // Si todo sale bien, mostramos el éxito
+        alert("Compra realizada con éxito. Total pagado: $" + data.total);
+        localStorage.removeItem('cart');
+        window.location.href = "/";
+    }
+});
         
         const data = await res.json();
         alert("Compra realizada con éxito. Total pagado: $" + data.total);
