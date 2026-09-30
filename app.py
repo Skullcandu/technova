@@ -130,21 +130,30 @@ def api_order_detail(oid):
     d = dict(o); d["items"] = [dict(i) for i in items]
     return jsonify(d)
 
-# Listado de usuarios (debería ser solo admin)
+# Listado de usuarios (SOLO ADMIN) - [MITIGADO C-01]
 @app.route("/api/admin/users")
 def api_admin_users():
     u = current_user()
     if not u: return jsonify(error="Debe iniciar sesión"), 401
-    # VULNERABILIDAD BAC: no verifica rol admin y expone password, email y rut
-    rows = db().execute("SELECT id,username,password,role,email,rut FROM users").fetchall()
+    
+    # PARCHE C-01: Validación estricta de rol en el backend
+    if u.get("role") != "admin":
+        return jsonify(error="Acceso denegado. Se requieren privilegios de administrador."), 403
+        
+    # PARCHE EXTRA (Fuga de datos): Ya no consultamos la columna 'password'
+    rows = db().execute("SELECT id, username, role, email, rut FROM users").fetchall()
     return jsonify([dict(r) for r in rows])
 
-# Modificar precio o stock de un producto (debería ser solo admin)
+# Modificar precio o stock de un producto (SOLO ADMIN) - [MITIGADO C-01]
 @app.route("/api/admin/products/<int:pid>", methods=["POST"])
 def api_admin_edit_product(pid):
     u = current_user()
     if not u: return jsonify(error="Debe iniciar sesión"), 401
-    # VULNERABILIDAD BAC: no verifica rol admin; cualquier usuario cambia precio/stock
+    
+    # PARCHE C-01: Validación estricta de rol en el backend
+    if u.get("role") != "admin":
+        return jsonify(error="Acceso denegado. Se requieren privilegios de administrador."), 403
+        
     d = request.get_json()
     c = db()
     prod = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
