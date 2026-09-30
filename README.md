@@ -1,53 +1,66 @@
-# TechNova – Laboratorio para el Taller de Seguridad para Plataformas Web
+# TechNova - Auditoría de Seguridad Web 🛡️
 
-Tienda ficticia de componentes de PC, **deliberadamente vulnerable**. Úsala solo en tu equipo (127.0.0.1).
+**TechNova** es una aplicación web transaccional (tienda de componentes de PC) utilizada como laboratorio para la demostración práctica de identificación, explotación y mitigación de vulnerabilidades de lógica de negocio y control de acceso.
 
-## Ejecutar
-```
+Este repositorio documenta el ciclo completo de remediación de software para la asignatura **Seguridad para plataformas web (CIB402)** del Instituto Profesional AIEP (Sede Bellavista).
+
+---
+
+## 📋 Resumen de la Auditoría
+
+El proyecto consistió en auditar una línea base vulnerable (`baseline`), identificar fallas críticas que permitían el fraude financiero y la fuga de datos, y aplicar controles defensivos directamente en la capa lógica del servidor (Backend).
+
+### Vulnerabilidades Mitigadas (Controles Implementados)
+*   **[C-01] Control de Acceso Roto (BAC):** Se implementó validación estricta de rol (`admin`) en el backend para evitar la fuga masiva de datos personales (RUTs, correos) y el sabotaje del catálogo.
+*   **[C-02] Fraude de Precios (BLV):** Se eliminó la confianza ciega en el *payload* del cliente. El servidor ahora calcula el total financiero consultando directamente el precio oficial en la base de datos.
+*   **[C-03] Acceso Horizontal No Autorizado (IDOR):** Se integró verificación de propiedad (Dueño) interceptando el ID del pedido, bloqueando la lectura de boletas ajenas.
+*   **[C-04] Abuso de Inventario (BLV):** Se implementó validación de límites lógicos en el backend, forzando números enteros positivos y bloqueando compras que superen el stock físico, evitando inventarios negativos.
+
+---
+
+## 🗂️ Estructura del Repositorio
+
+*   `/app.py`: Archivo principal del backend (Controladores Flask y lógica de negocio).
+*   `/technova.db`: Base de datos SQLite local.
+*   `/templates/` y `/static/`: Capa de presentación (Frontend, HTML/JS/CSS).
+*   `/docs/evidencias/baseline/`: Evidencias fotográficas de la explotación exitosa de las vulnerabilidades en el estado inicial.
+*   `/docs/evidencias/final/`: Evidencias fotográficas que demuestran el bloqueo de los ataques tras la implementación de los controles.
+
+---
+
+## ⚙️ Instalación y Ejecución
+
+Para levantar el entorno local de TechNova, sigue estos pasos:
+
+1. **Clonar el repositorio:**
+   ```bash
+   git clone [https://github.com/Skullcandu/technova.git](https://github.com/Skullcandu/technova.git)
+   cd technova
+   
+---
+
+   Instalar las dependencias:
+Asegúrate de tener Python instalado y ejecuta:
+
+
 pip install -r requirements.txt
-python app.py        # http://127.0.0.1:5000
-```
-Para reiniciar los datos, borra `technova.db` y vuelve a ejecutar.
+(Nota: Flask es la dependencia principal).
 
-**Antes de tocar nada:** `git init && git add . && git commit -m "baseline" && git tag baseline` (entregable: evidencia del estado inicial).
+Ejecutar el servidor:
 
-## Usuarios de prueba
-| Usuario | Contraseña | Rol |
-|---|---|---|
-| admin | admin123 | admin |
-| ana | ana123 | cliente |
-| luis | luis123 | cliente |
+python app.py
+Acceder a la aplicación:
+Abre tu navegador web en http://127.0.0.1:5000
 
-## Cumple los mínimos del taller (sección 4)
-Persistencia (SQLite) · operaciones que modifican estado (compra, stock, reseñas, edición de productos) · 2 roles (cliente/admin) · proceso de negocio (compra) · frontend ↔ API REST.
+🔍 Guía de Reproducción (Para Evaluación Técnica)
+El repositorio utiliza etiquetas (tags) de Git para facilitar la revisión del código "Antes" y "Después" de la auditoría.
 
-## Etapa 1 – Punto de partida
-- **Proceso principal:** seleccionar producto → ver precio → verificar stock → carrito → aplicar cupón → calcular total → comprar → descontar stock.
-- **Actores:** cliente, administrador, (atacante externo).
-- **Activos candidatos:** credenciales, sesiones, datos personales (email, RUT), pedidos, inventario/precios, cupones, base de datos.
-- **Arquitectura:** navegador (HTML/JS) → API Flask (`app.py`) → SQLite (`technova.db`).
-- **Endpoints:** `/api/login`, `/api/me`, `/api/products`, `/api/products/<id>/reviews`, `/api/checkout`, `/api/orders`, `/api/orders/<id>`, `/api/admin/users`, `/api/admin/products/<id>`.
+1. Ver el estado vulnerable original:
+Para ejecutar la tienda con todas sus vulnerabilidades abiertas (Fraude a $1, IDOR, Inventario negativo, fuga de RUTs), viaja en el tiempo a la etiqueta baseline:
 
-## Hipótesis a comprobar (NO asumir: demostrar con pruebas)
-El taller pide evidencia, así que estas son solo pistas de por dónde empezar. Cada una debe pasar por *situación inicial → prueba → resultado → evidencia → interpretación*, y algunas pueden resultar no explotables o de menor impacto (útil para la sección 22).
+git checkout baseline
+2. Ver el estado seguro final:
+Para volver a la versión protegida con los controles C-01 a C-04 aplicados y el entorno saneado:
 
-1. **Autenticación/criptografía:** ¿cómo se almacenan las contraseñas? ¿hay límite de intentos?
-2. **Validación de entradas:** login y búsqueda de productos construyen consultas SQL.
-3. **Gestión de sesiones:** ¿qué contiene la cookie `sid`? ¿es predecible? ¿banderas? ¿se invalida al salir?
-4. **Control de acceso:** `/api/orders/<id>` y las rutas de administración.
-5. **XSS:** cómo se muestran las reseñas y otros datos en el navegador.
-6. **Lógica de negocio (BLV, mínimo 3 flujos):** origen del precio en la compra, validación de cantidades, stock, cupones (reutilización/acumulación), orden del proceso.
-7. **Configuración HTTP y errores:** cabeceras de seguridad, mensajes de error, modo debug.
-8. **Logging:** ¿queda registro de intentos fallidos y operaciones críticas?
-9. **CSRF:** acciones que modifican estado.
-10. **Protección de datos:** qué devuelve la API sobre los usuarios.
-
-## Cómo usarlo en el taller
-1. Documentar baseline (commit/tag + evidencias).
-2. Definir 8–12 requisitos verificables (ID, descripción, activo, problema, prueba, prioridad; ASVS como respaldo).
-3. Diseñar y ejecutar pruebas; registrar hallazgos y priorizar.
-4. Implementar ≥ 4 controles; reprobar con la misma prueba.
-5. Mostrar al menos un control que bloquee el abuso **sin romper** el uso legítimo (ej.: precio calculado en servidor sin impedir la compra normal).
-6. Completar matriz de trazabilidad, riesgo residual, medida no implementada y recomendación descartada.
-
-> Pruebas de seguridad únicamente sobre esta app en local.
+git checkout final
+(Nota: Después de revisar un tag antiguo, puedes volver a la rama principal escribiendo git checkout main).
