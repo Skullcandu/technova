@@ -143,17 +143,25 @@ def api_orders():
     rows = db().execute("SELECT id,total,status,created FROM orders WHERE user_id=? ORDER BY id DESC", (u["id"],)).fetchall()
     return jsonify([dict(r) for r in rows])
 
-# Detalle de un pedido
+# Ver detalle de un pedido específico - [MITIGADO C-03]
 @app.route("/api/orders/<int:oid>")
 def api_order_detail(oid):
     u = current_user()
     if not u: return jsonify(error="Debe iniciar sesión"), 401
-    # VULNERABILIDAD IDOR: no verifica que el pedido sea del usuario
-    o = db().execute("SELECT * FROM orders WHERE id=?", (oid,)).fetchone()
-    if not o: return jsonify(error="No existe"), 404
-    items = db().execute("SELECT * FROM order_items WHERE order_id=?", (oid,)).fetchall()
-    d = dict(o); d["items"] = [dict(i) for i in items]
-    return jsonify(d)
+
+    c = db()
+    # Buscar el pedido en la base de datos
+    order = c.execute("SELECT * FROM orders WHERE id=?", (oid,)).fetchone()
+    
+    if not order: 
+        return jsonify(error="Pedido no encontrado"), 404
+        
+    # PARCHE C-03 (IDOR): Validar estrictamente que la orden pertenezca al usuario activo
+    if order["user_id"] != u["id"]:
+        return jsonify(error="Acceso denegado. No tienes permiso para ver este pedido."), 403
+
+    # Si pasa la validación, devolver los datos
+    return jsonify(dict(order))
 
 # Listado de usuarios (SOLO ADMIN) - [MITIGADO C-01]
 @app.route("/api/admin/users")
