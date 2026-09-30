@@ -80,26 +80,51 @@ def carrito():
 
 # --- RUTAS API (BACKEND PARA LÓGICA DE NEGOCIO) ---
 
+# Procesar compra (Carrito) - [MITIGADO C-02 y C-04]
 @app.route("/api/checkout", methods=["POST"])
-def checkout():
+def api_checkout():
     u = current_user()
     if not u: return jsonify(error="Debe iniciar sesión"), 401
-    d = request.get_json(); c = db(); total = 0
     
-    # VULNERABILIDAD BLV: El cliente envía el precio de los productos
-    for it in d.get("items", []):
-        total += it["price"] * it["qty"]
-    for code in d.get("coupons", []):
-        cp = c.execute("SELECT pct FROM coupons WHERE code=?", (code,)).fetchone()
-        if cp: total -= total * cp["pct"] / 100
+    data = request.get_json()
+    items = data.get("items", [])
+    if not items: return jsonify(error="Carrito vacío"), 400
+    
+    c = db()
+    real_total = 0
+    
+    for item in items:
+        prod_id = item.get("id")
         
-    cur = c.execute("INSERT INTO orders(user_id,total,status) VALUES(?,?,'pagado')", (u["id"], total))
-    oid = cur.lastrowid
-    for it in d.get("items", []):
-        c.execute("INSERT INTO order_items VALUES(?,?,?,?)", (oid, it["id"], it["qty"], it["price"]))
-        c.execute("UPDATE products SET stock=stock-? WHERE id=?", (it["qty"], it["id"]))
+        # PARCHE C-04 (Abuso de Cantidades): Forzar número entero y bloquear negativos/cero
+        try:
+            qty = int(item.get("qty", 1))
+        except ValueError:
+            return jsonify(error="Cantidad malformada"), 400
+            
+        if qty <= 0:
+            return jsonify(error="Error: La cantidad de compra debe ser al menos 1"), 400
+            
+        # Buscar el producto directo en la fuente de verdad (Base de Datos)
+        prod = c.execute("SELECT id, name, price, stock FROM products WHERE id=?", (prod_id,)).fetchone()
+        if not prod: return jsonify(error="Producto no encontrado"), 404
+        
+        # PARCHE C-04 (Inventario): Bloquear si piden más de lo que hay
+        if qty > prod["stock"]:
+            return jsonify(error=f"Stock insuficiente para {prod['name']}. Solo quedan {prod['stock']} unidades."), 400
+            
+        # PARCHE C-02 (Fraude de Precios): Usamos el precio de la BD, ignorando el de la petición
+        real_total += (prod["price"] * qty)
+        
+        # Descontar el inventario de forma segura
+        c.execute("UPDATE products SET stock = stock - ? WHERE id = ?", (qty, prod_id))
+        
+    # Crear la boleta oficial con el total verdadero
+    c.execute("INSERT INTO orders (user_id, total, status) VALUES (?, ?, 'Pagado')", (u["id"], real_total))
+    order_id = c.lastrowid
+    
     c.commit()
-    return jsonify(order_id=oid, total=total)
+    return jsonify(order_id=order_id, total=real_total, status="Compra exitosa")
 
 # ====== NUEVAS RUTAS: perfil, pedidos y administración (BASELINE, vulnerables) ======
 
