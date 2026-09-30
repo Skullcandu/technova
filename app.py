@@ -101,6 +101,60 @@ def checkout():
     c.commit()
     return jsonify(order_id=oid, total=total)
 
+# ====== NUEVAS RUTAS: perfil, pedidos y administración (BASELINE, vulnerables) ======
+
+# Datos del perfil de la cuenta activa
+@app.route("/api/me")
+def api_me():
+    u = current_user()
+    if not u: return jsonify(error="Debe iniciar sesión"), 401
+    return jsonify(id=u["id"], username=u["username"], role=u["role"], email=u["email"], rut=u["rut"])
+
+# Historial de pedidos del usuario autenticado
+@app.route("/api/orders")
+def api_orders():
+    u = current_user()
+    if not u: return jsonify(error="Debe iniciar sesión"), 401
+    rows = db().execute("SELECT id,total,status,created FROM orders WHERE user_id=? ORDER BY id DESC", (u["id"],)).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+# Detalle de un pedido
+@app.route("/api/orders/<int:oid>")
+def api_order_detail(oid):
+    u = current_user()
+    if not u: return jsonify(error="Debe iniciar sesión"), 401
+    # VULNERABILIDAD IDOR: no verifica que el pedido sea del usuario
+    o = db().execute("SELECT * FROM orders WHERE id=?", (oid,)).fetchone()
+    if not o: return jsonify(error="No existe"), 404
+    items = db().execute("SELECT * FROM order_items WHERE order_id=?", (oid,)).fetchall()
+    d = dict(o); d["items"] = [dict(i) for i in items]
+    return jsonify(d)
+
+# Listado de usuarios (debería ser solo admin)
+@app.route("/api/admin/users")
+def api_admin_users():
+    u = current_user()
+    if not u: return jsonify(error="Debe iniciar sesión"), 401
+    # VULNERABILIDAD BAC: no verifica rol admin y expone password, email y rut
+    rows = db().execute("SELECT id,username,password,role,email,rut FROM users").fetchall()
+    return jsonify([dict(r) for r in rows])
+
+# Modificar precio o stock de un producto (debería ser solo admin)
+@app.route("/api/admin/products/<int:pid>", methods=["POST"])
+def api_admin_edit_product(pid):
+    u = current_user()
+    if not u: return jsonify(error="Debe iniciar sesión"), 401
+    # VULNERABILIDAD BAC: no verifica rol admin; cualquier usuario cambia precio/stock
+    d = request.get_json()
+    c = db()
+    prod = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
+    if not prod: return jsonify(error="No existe"), 404
+    price = d.get("price", prod["price"])
+    stock = d.get("stock", prod["stock"])
+    c.execute("UPDATE products SET price=?, stock=? WHERE id=?", (price, stock, pid))
+    c.commit()
+    return jsonify(id=pid, price=price, stock=stock)
+
 if __name__ == "__main__":
     init_db()
     app.run(host="127.0.0.1", port=5000, debug=True)

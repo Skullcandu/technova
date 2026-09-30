@@ -52,8 +52,7 @@
             {% for p in products %}
             <div class="card">
                 <div class="img-placeholder">
-                    <!-- Espacio para futura foto del producto -->
-                    Hardware 500x500
+                    <img src="{{ url_for('static', filename='img/' ~ p.id ~ '.jfif') }}" alt="{{ p.name }}" style="width: 100%; height: 160px; object-fit: contain; margin-bottom: 15px;">
                 </div>
                 
                 <div class="tag">LLEGA MAÑANA</div>
