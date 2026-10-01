@@ -64,3 +64,5 @@ Para volver a la versión protegida con los controles C-01 a C-04 aplicados y el
 
 git checkout final
 (Nota: Después de revisar un tag antiguo, puedes volver a la rama principal escribiendo git checkout main).
+(Nota: El hallazgo "H05" se encuentra únicamente en el tag final, igualmente su control "C05")
+
