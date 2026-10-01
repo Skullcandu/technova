@@ -80,51 +80,31 @@ def carrito():
 
 # --- RUTAS API (BACKEND PARA LÓGICA DE NEGOCIO) ---
 
-# Procesar compra (Carrito) - [MITIGADO C-02 y C-04]
 @app.route("/api/checkout", methods=["POST"])
-def api_checkout():
+def checkout():
     u = current_user()
     if not u: return jsonify(error="Debe iniciar sesión"), 401
+    d = request.get_json(); c = db(); total = 0
     
-    data = request.get_json()
-    items = data.get("items", [])
-    if not items: return jsonify(error="Carrito vacío"), 400
-    
-    c = db()
-    real_total = 0
-    
-    for item in items:
-        prod_id = item.get("id")
-        
-        # PARCHE C-04 (Abuso de Cantidades): Forzar número entero y bloquear negativos/cero
-        try:
-            qty = int(item.get("qty", 1))
-        except ValueError:
-            return jsonify(error="Cantidad malformada"), 400
-            
-        if qty <= 0:
-            return jsonify(error="Error: La cantidad de compra debe ser al menos 1"), 400
-            
-        # Buscar el producto directo en la fuente de verdad (Base de Datos)
-        prod = c.execute("SELECT id, name, price, stock FROM products WHERE id=?", (prod_id,)).fetchone()
-        if not prod: return jsonify(error="Producto no encontrado"), 404
-        
-        # PARCHE C-04 (Inventario): Bloquear si piden más de lo que hay
-        if qty > prod["stock"]:
-            return jsonify(error=f"Stock insuficiente para {prod['name']}. Solo quedan {prod['stock']} unidades."), 400
-            
-        # PARCHE C-02 (Fraude de Precios): Usamos el precio de la BD, ignorando el de la petición
-        real_total += (prod["price"] * qty)
-        
-        # Descontar el inventario de forma segura
-        c.execute("UPDATE products SET stock = stock - ? WHERE id = ?", (qty, prod_id))
-        
-    # Crear la boleta oficial con el total verdadero
-    c.execute("INSERT INTO orders (user_id, total, status) VALUES (?, ?, 'Pagado')", (u["id"], real_total))
-    order_id = c.lastrowid
-    
+    # VULNERABILIDAD BLV: El cliente envía el precio de los productos
+    for it in d.get("items", []):
+        total += it["price"] * it["qty"]
+        # CONTROL C-05: cada cupon se aplica una sola vez por pedido (evita acumulacion)
+    aplicados = set()
+    for code in d.get("coupons", []):
+        if code in aplicados:
+            continue
+        cp = c.execute("SELECT pct FROM coupons WHERE code=?", (code,)).fetchone()
+        if cp:
+            total -= total * cp["pct"] / 100
+            aplicados.add(code)
+    cur = c.execute("INSERT INTO orders(user_id,total,status) VALUES(?,?,'pagado')", (u["id"], total))
+    oid = cur.lastrowid
+    for it in d.get("items", []):
+        c.execute("INSERT INTO order_items VALUES(?,?,?,?)", (oid, it["id"], it["qty"], it["price"]))
+        c.execute("UPDATE products SET stock=stock-? WHERE id=?", (it["qty"], it["id"]))
     c.commit()
-    return jsonify(order_id=order_id, total=real_total, status="Compra exitosa")
+    return jsonify(order_id=oid, total=total)
 
 # ====== NUEVAS RUTAS: perfil, pedidos y administración (BASELINE, vulnerables) ======
 
@@ -143,50 +123,33 @@ def api_orders():
     rows = db().execute("SELECT id,total,status,created FROM orders WHERE user_id=? ORDER BY id DESC", (u["id"],)).fetchall()
     return jsonify([dict(r) for r in rows])
 
-# Ver detalle de un pedido específico - [MITIGADO C-03]
+# Detalle de un pedido
 @app.route("/api/orders/<int:oid>")
 def api_order_detail(oid):
     u = current_user()
     if not u: return jsonify(error="Debe iniciar sesión"), 401
+    # VULNERABILIDAD IDOR: no verifica que el pedido sea del usuario
+    o = db().execute("SELECT * FROM orders WHERE id=?", (oid,)).fetchone()
+    if not o: return jsonify(error="No existe"), 404
+    items = db().execute("SELECT * FROM order_items WHERE order_id=?", (oid,)).fetchall()
+    d = dict(o); d["items"] = [dict(i) for i in items]
+    return jsonify(d)
 
-    c = db()
-    # Buscar el pedido en la base de datos
-    order = c.execute("SELECT * FROM orders WHERE id=?", (oid,)).fetchone()
-    
-    if not order: 
-        return jsonify(error="Pedido no encontrado"), 404
-        
-    # PARCHE C-03 (IDOR): Validar estrictamente que la orden pertenezca al usuario activo
-    if order["user_id"] != u["id"]:
-        return jsonify(error="Acceso denegado. No tienes permiso para ver este pedido."), 403
-
-    # Si pasa la validación, devolver los datos
-    return jsonify(dict(order))
-
-# Listado de usuarios (SOLO ADMIN) - [MITIGADO C-01]
+# Listado de usuarios (debería ser solo admin)
 @app.route("/api/admin/users")
 def api_admin_users():
     u = current_user()
     if not u: return jsonify(error="Debe iniciar sesión"), 401
-    
-    # PARCHE C-01: Validación estricta de rol en el backend
-    if u.get("role") != "admin":
-        return jsonify(error="Acceso denegado. Se requieren privilegios de administrador."), 403
-        
-    # PARCHE EXTRA (Fuga de datos): Ya no consultamos la columna 'password'
-    rows = db().execute("SELECT id, username, role, email, rut FROM users").fetchall()
+    # VULNERABILIDAD BAC: no verifica rol admin y expone password, email y rut
+    rows = db().execute("SELECT id,username,password,role,email,rut FROM users").fetchall()
     return jsonify([dict(r) for r in rows])
 
-# Modificar precio o stock de un producto (SOLO ADMIN) - [MITIGADO C-01]
+# Modificar precio o stock de un producto (debería ser solo admin)
 @app.route("/api/admin/products/<int:pid>", methods=["POST"])
 def api_admin_edit_product(pid):
     u = current_user()
     if not u: return jsonify(error="Debe iniciar sesión"), 401
-    
-    # PARCHE C-01: Validación estricta de rol en el backend
-    if u.get("role") != "admin":
-        return jsonify(error="Acceso denegado. Se requieren privilegios de administrador."), 403
-        
+    # VULNERABILIDAD BAC: no verifica rol admin; cualquier usuario cambia precio/stock
     d = request.get_json()
     c = db()
     prod = c.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
