@@ -15,6 +15,7 @@ El proyecto consistió en auditar una línea base vulnerable (`baseline`), ident
 *   **[C-02] Fraude de Precios (BLV):** Se eliminó la confianza ciega en el *payload* del cliente. El servidor ahora calcula el total financiero consultando directamente el precio oficial en la base de datos.
 *   **[C-03] Acceso Horizontal No Autorizado (IDOR):** Se integró verificación de propiedad (Dueño) interceptando el ID del pedido, bloqueando la lectura de boletas ajenas.
 *   **[C-04] Abuso de Inventario (BLV):** Se implementó validación de límites lógicos en el backend, forzando números enteros positivos y bloqueando compras que superen el stock físico, evitando inventarios negativos.
+* **[C-05] Acumulación de Cupones (BLV):** Se implementó un control de unicidad en el procesamiento de pagos del backend, garantizando que cada código de descuento se aplique una sola vez por orden, eliminando el fraude por encadenamiento ilimitado.
 
 ---
 
@@ -60,7 +61,7 @@ Para ejecutar la tienda con todas sus vulnerabilidades abiertas (Fraude a $1, ID
 
 git checkout baseline
 2. Ver el estado seguro final:
-Para volver a la versión protegida con los controles C-01 a C-04 aplicados y el entorno saneado:
+Para volver a la versión protegida con los controles C-01 a C-05 aplicados y el entorno saneado:
 
 git checkout final
 (Nota: Después de revisar un tag antiguo, puedes volver a la rama principal escribiendo git checkout main).
