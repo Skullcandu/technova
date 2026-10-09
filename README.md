@@ -1,6 +1,6 @@
-# TechNova - Auditoría de Seguridad Web 🛡️
+# CyberComponentes - Auditoría de Seguridad Web 🛡️
 
-**TechNova** es una aplicación web transaccional (tienda de componentes de PC) utilizada como laboratorio para la demostración práctica de identificación, explotación y mitigación de vulnerabilidades de lógica de negocio y control de acceso.
+**CyberComponentes** es una aplicación web transaccional (tienda de componentes de PC) utilizada como laboratorio para la demostración práctica de identificación, explotación y mitigación de vulnerabilidades de lógica de negocio y control de acceso.
 
 Este repositorio documenta el ciclo completo de remediación de software para la asignatura **Seguridad para plataformas web (CIB402)** del Instituto Profesional AIEP (Sede Bellavista).
 
@@ -30,7 +30,7 @@ El proyecto consistió en auditar una línea base vulnerable (`baseline`), ident
 
 ## ⚙️ Instalación y Ejecución
 
-Para levantar el entorno local de TechNova, sigue estos pasos:
+Para levantar el entorno local de CyberComponentes, sigue estos pasos:
 
 1. **Clonar el repositorio:**
    ```bash
