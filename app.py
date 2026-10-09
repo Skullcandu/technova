@@ -120,7 +120,15 @@ def api_me():
 def api_orders():
     u = current_user()
     if not u: return jsonify(error="Debe iniciar sesión"), 401
-    rows = db().execute("SELECT id,total,status,created FROM orders WHERE user_id=? ORDER BY id DESC", (u["id"],)).fetchall()
+    
+    c = db()
+    # RBAC: Finanzas (y Admin) ven todas las boletas de la empresa
+    if u["role"] in ["finanzas", "admin"]:
+        rows = c.execute("SELECT id, total, status, created, user_id FROM orders ORDER BY id DESC").fetchall()
+    # El cliente estándar solo ve sus propias compras
+    else:
+        rows = c.execute("SELECT id, total, status, created, user_id FROM orders WHERE user_id=? ORDER BY id DESC", (u["id"],)).fetchall()
+        
     return jsonify([dict(r) for r in rows])
 
 # Detalle de un pedido
@@ -128,27 +136,38 @@ def api_orders():
 def api_order_detail(oid):
     u = current_user()
     if not u: return jsonify(error="Debe iniciar sesión"), 401
-    # VULNERABILIDAD IDOR: no verifica que el pedido sea del usuario
-    o = db().execute("SELECT * FROM orders WHERE id=?", (oid,)).fetchone()
-    if not o: return jsonify(error="No existe"), 404
+    
+    c = db()
+    order = c.execute("SELECT * FROM orders WHERE id=?", (oid,)).fetchone()
+    
+    if not order:
+        return jsonify(error="Pedido no encontrado"), 404
+
+    # RBAC y mitigación IDOR: Bloqueamos SI no es el dueño Y TAMPOCO es finanzas/admin
+    if u["id"] != order["user_id"] and u["role"] not in ["finanzas", "admin"]:
+        return jsonify(error="Acceso denegado. No tienes permiso para ver este pedido."), 403
     items = db().execute("SELECT * FROM order_items WHERE order_id=?", (oid,)).fetchall()
-    d = dict(o); d["items"] = [dict(i) for i in items]
+    d = dict(order); d["items"] = [dict(i) for i in items]
     return jsonify(d)
 
 # Listado de usuarios (debería ser solo admin)
 @app.route("/api/admin/users")
 def api_admin_users():
     u = current_user()
-    if not u: return jsonify(error="Debe iniciar sesión"), 401
+    # RBAC: Acceso exclusivo para el Superadmin
+    if not u or u["role"] != "admin":
+        return jsonify(error="Acceso denegado. Se requieren privilegios de administrador exclusivo."), 403
     # VULNERABILIDAD BAC: no verifica rol admin y expone password, email y rut
     rows = db().execute("SELECT id,username,password,role,email,rut FROM users").fetchall()
     return jsonify([dict(r) for r in rows])
 
 # Modificar precio o stock de un producto (debería ser solo admin)
 @app.route("/api/admin/products/<int:pid>", methods=["POST"])
-def api_admin_edit_product(pid):
+def api_admin_products(pid):
     u = current_user()
-    if not u: return jsonify(error="Debe iniciar sesión"), 401
+    # RBAC: Solo Administrador y Soporte pueden modificar catálogo
+    if not u or u["role"] not in ["admin", "soporte"]:
+        return jsonify(error="Acceso denegado. Se requieren privilegios de administración o soporte."), 403
     # VULNERABILIDAD BAC: no verifica rol admin; cualquier usuario cambia precio/stock
     d = request.get_json()
     c = db()
